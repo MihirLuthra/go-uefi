@@ -223,7 +223,7 @@ func SignEFIVariable(v efivar.Efivar, m efivar.Marshallable, key crypto.Signer, 
 		}
 	}
 
-	der, err := pkcs7.SignPKCS7(key, cert, pkcs7.OIDData, buf.Bytes())
+	der, err := pkcs7.SignPkcs7AndGetSignedData(key, cert, pkcs7.OIDData, buf.Bytes())
 	if err != nil {
 		return nil, nil, err
 	}

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/cryptobyte/asn1"
 
 	encasn1 "encoding/asn1"
+	"encoding/base64"
 )
 
 // OID data we need
@@ -33,33 +34,81 @@ var (
 	ErrNoCertificate = errors.New("no valid certificates")
 )
 
-// Partially implements RFC2315
-func SignPKCS7(signer crypto.Signer, cert *x509.Certificate, oid encasn1.ObjectIdentifier, content []byte) ([]byte, error) {
-	var contentInfo cryptobyte.Builder
+type unparsedAttribute struct {
+	Type  encasn1.ObjectIdentifier
+	Bytes []byte
+}
 
-	// Attributes
-	// TODO, not needed for Wincert/UEFI. But we do it anyway
-	// Original Implementation has:
-	// - OIDAttributeContentType
-	// - OIDAttributeSigningTime
-	// - OIDAttributeMessageDigest
+type Attributes struct {
+	ContentType   encasn1.ObjectIdentifier
+	MessageDigest []byte
+	SigningTime   time.Time
+	Other         []*unparsedAttribute
+}
 
-	// Hash the authenticated attributes
-	h := crypto.SHA256.New()
-	h.Write(content)
-	attrs := &Attributes{
-		ContentType:   oid,
-		MessageDigest: h.Sum(nil),
-		SigningTime:   time.Now().UTC(),
-	}
-	attributes := attrs.Marshal()
-	h = crypto.SHA256.New()
-	h.Write(attributes)
+type Pkcs7SignResult struct {
+  Sig []byte
+	Attributes Attributes
+}
 
-	sig, err := signer.Sign(rand.Reader, h.Sum(nil), crypto.SHA256)
+func SignPkcs7AndGetSignedData(signer crypto.Signer, cert *x509.Certificate, oid encasn1.ObjectIdentifier, content []byte) ([]byte, error) {
+  sigRes, err := SignPKCS7(signer, cert, oid, content)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+  return MakeSignedData(cert, sigRes.Attributes, oid, content, sigRes.Sig)
+}
+
+func AttributesForSigning(messageDigest []byte, oid encasn1.ObjectIdentifier, signingTime time.Time) Attributes {
+  // Hash the authenticated attributes
+  attrs := Attributes{
+    ContentType:   oid,
+    MessageDigest: messageDigest,
+    SigningTime:   signingTime,
+  }
+
+  return attrs
+}
+
+// Partially implements RFC2315
+func SignPKCS7(signer crypto.Signer, cert *x509.Certificate, oid encasn1.ObjectIdentifier, content []byte) (Pkcs7SignResult,  error) {
+  // Attributes
+  // TODO, not needed for Wincert/UEFI. But we do it anyway
+  // Original Implementation has:
+  // - OIDAttributeContentType
+  // - OIDAttributeSigningTime
+  // - OIDAttributeMessageDigest
+
+  // Hash the authenticated attributes
+  h := crypto.SHA256.New()
+  h.Write(content)
+  // attrs := AttributesForSigning(h.Sum(nil), oid, time.Now().UTC())
+  signingTime, _ := time.Parse(time.RFC3339, "2025-03-08T20:23:01Z")
+  attrs := AttributesForSigning(h.Sum(nil), oid, signingTime)
+  attributes := attrs.Marshal()
+  h = crypto.SHA256.New()
+  h.Write(attributes)
+
+  fmt.Printf("Signing data: %s\n", base64.StdEncoding.EncodeToString(h.Sum(nil)))
+  sig, err := signer.Sign(rand.Reader, h.Sum(nil), crypto.SHA256)
+  if err != nil {
+		log.Fatal(err)
+	}
+  fmt.Printf("sig len: %d\n", len(sig))
+
+  return Pkcs7SignResult{Sig: sig, Attributes: attrs}, nil
+}
+
+func MakeSignedData(cert *x509.Certificate, attrs Attributes, oid encasn1.ObjectIdentifier, content []byte, sig []byte) ([]byte, error) {
+
+  fmt.Printf("content in MakeSignedData: %d:%s\n", len(content), base64.StdEncoding.EncodeToString(content))
+  fmt.Printf("attributes in MakeSignedData: %d:%s\n", len(attrs.Marshal()), base64.StdEncoding.EncodeToString(attrs.Marshal()))
+  fmt.Printf("sig in MakeSignedData: %d:%s\n", len(sig), base64.StdEncoding.EncodeToString(sig))
+  fmt.Printf("oid: %d:%s\n", len(oid.String()), oid.String())
+
+  attributes := attrs.Marshal()
+	var contentInfo cryptobyte.Builder
 
 	// ContentInfo ::= SEQUENCE
 	contentInfo.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
@@ -507,18 +556,6 @@ func ParsePKCS7(b []byte) (*PKCS7, error) {
 	}
 
 	return &pkcs, nil
-}
-
-type unparsedAttribute struct {
-	Type  encasn1.ObjectIdentifier
-	Bytes []byte
-}
-
-type Attributes struct {
-	ContentType   encasn1.ObjectIdentifier
-	MessageDigest []byte
-	SigningTime   time.Time
-	Other         []*unparsedAttribute
 }
 
 func (a *Attributes) Marshal() []byte {

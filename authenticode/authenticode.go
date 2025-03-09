@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"time"
 
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
@@ -128,6 +129,49 @@ func CreateSpcIndirectDataContent(digest []byte, alg crypto.Hash) ([]byte, error
 	return b.Bytes()
 }
 
+type ToBeSignedDataResult struct {
+  Tbs []byte
+	Attributes pkcs7.Attributes
+  SPCIndirectDataContent []byte
+}
+
+// Get data that needs to be signed.
+func ToBeSignedData(digest io.Reader, alg crypto.Hash, signingTime time.Time) (*ToBeSignedDataResult, error) {
+	h := alg.New()
+
+	if _, err := io.Copy(h, digest); err != nil {
+		return nil, err
+	}
+
+  content, err := CreateSpcIndirectDataContent(h.Sum(nil), alg)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating SpcIndirectDataContent: %v", err)
+	}
+
+  // Attributes
+	// TODO, not needed for Wincert/UEFI. But we do it anyway
+	// Original Implementation has:
+	// - OIDAttributeContentType
+	// - OIDAttributeSigningTime
+	// - OIDAttributeMessageDigest
+
+	// Hash the authenticated attributes
+	h2 := crypto.SHA256.New()
+	h2.Write(content)
+  attrs := pkcs7.AttributesForSigning(h2.Sum(nil), OIDSpcIndirectDataContent, signingTime)
+	attributes := attrs.Marshal()
+	h2 = crypto.SHA256.New()
+	h2.Write(attributes)
+
+  tbs := new(ToBeSignedDataResult)
+
+  tbs.Tbs = h2.Sum(nil)
+  tbs.Attributes = attrs
+  tbs.SPCIndirectDataContent = content
+
+  return tbs, nil
+}
+
 // SignAuthenticode signs a digest with the SPC Indirect Data Content as
 // specified by the authenticode standard.
 func SignAuthenticode(signer crypto.Signer, cert *x509.Certificate, digest io.Reader, alg crypto.Hash) ([]byte, error) {
@@ -141,7 +185,7 @@ func SignAuthenticode(signer crypto.Signer, cert *x509.Certificate, digest io.Re
 	if err != nil {
 		return nil, fmt.Errorf("failed creating SpcIndirectDataContent: %v", err)
 	}
-	return pkcs7.SignPKCS7(signer, cert, OIDSpcIndirectDataContent, b)
+	return pkcs7.SignPkcs7AndGetSignedData(signer, cert, OIDSpcIndirectDataContent, b)
 }
 
 // ParseAuthenticode parses an Authenticode signature.

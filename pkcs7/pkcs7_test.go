@@ -12,7 +12,7 @@ import (
 
 func TestVerifySignature(t *testing.T) {
 	cert, key = InitCert()
-	b, err := SignPKCS7(key, cert, OIDData, []byte{0x00, 0x01})
+	b, err := SignPkcs7AndGetSignedData(key, cert, OIDData, []byte{0x00, 0x01})
 	if err != nil {
 		t.Fatalf("message")
 	}
@@ -61,7 +61,7 @@ func TestCompareOldImplementation(t *testing.T) {
 	img := []byte{0x00, 0x01}
 	h := crypto.SHA256.New()
 	h.Write(img)
-	bb, err := SignPKCS7(key, cert, OIDData, h.Sum(nil))
+	bb, err := SignPkcs7AndGetSignedData(key, cert, OIDData, h.Sum(nil))
 	if err != nil {
 		t.Fatalf("failed signing digest")
 	}

@@ -22,6 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
+
 	peFile, err := os.Open(args[0])
 	if err != nil {
 		log.Fatal(err)
