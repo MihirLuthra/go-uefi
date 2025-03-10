@@ -16,7 +16,6 @@ import (
 	"golang.org/x/crypto/cryptobyte/asn1"
 
 	encasn1 "encoding/asn1"
-	"encoding/base64"
 )
 
 // OID data we need
@@ -83,30 +82,20 @@ func SignPKCS7(signer crypto.Signer, cert *x509.Certificate, oid encasn1.ObjectI
   // Hash the authenticated attributes
   h := crypto.SHA256.New()
   h.Write(content)
-  // attrs := AttributesForSigning(h.Sum(nil), oid, time.Now().UTC())
-  signingTime, _ := time.Parse(time.RFC3339, "2025-03-08T20:23:01Z")
-  attrs := AttributesForSigning(h.Sum(nil), oid, signingTime)
+  attrs := AttributesForSigning(h.Sum(nil), oid, time.Now().UTC())
   attributes := attrs.Marshal()
   h = crypto.SHA256.New()
   h.Write(attributes)
 
-  fmt.Printf("Signing data: %s\n", base64.StdEncoding.EncodeToString(h.Sum(nil)))
   sig, err := signer.Sign(rand.Reader, h.Sum(nil), crypto.SHA256)
   if err != nil {
 		log.Fatal(err)
 	}
-  fmt.Printf("sig len: %d\n", len(sig))
 
   return Pkcs7SignResult{Sig: sig, Attributes: attrs}, nil
 }
 
 func MakeSignedData(cert *x509.Certificate, attrs Attributes, oid encasn1.ObjectIdentifier, content []byte, sig []byte) ([]byte, error) {
-
-  fmt.Printf("content in MakeSignedData: %d:%s\n", len(content), base64.StdEncoding.EncodeToString(content))
-  fmt.Printf("attributes in MakeSignedData: %d:%s\n", len(attrs.Marshal()), base64.StdEncoding.EncodeToString(attrs.Marshal()))
-  fmt.Printf("sig in MakeSignedData: %d:%s\n", len(sig), base64.StdEncoding.EncodeToString(sig))
-  fmt.Printf("oid: %d:%s\n", len(oid.String()), oid.String())
-
   attributes := attrs.Marshal()
 	var contentInfo cryptobyte.Builder
 

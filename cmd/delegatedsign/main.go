@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	signingTimeStr := flag.String("signing-time", "", "Signing time in ISO 8601 format (e.g., 2023-03-09T12:34:56Z)")
+  signingTimeStr := flag.String("signing-time", "", "Signing time in ISO 8601 format (e.g., 2023-03-09T12:34:56Z)")
   inputFile := flag.String("input-file", "", "Input File")
   outputFile := flag.String("output-file", "", "Output File")
   signatureToAttach := flag.String("attach-signature", "", "Signature to attach given in a file")

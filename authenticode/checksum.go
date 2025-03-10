@@ -6,7 +6,6 @@ import (
 	"crypto"
 	"crypto/x509"
 	"debug/pe"
-	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -271,7 +270,6 @@ func (p *PECOFFBinary) ToBeSignedData(signingTime time.Time) (*ToBeSignedDataRes
 
 func (p *PECOFFBinary) MakeSignedData(cert *x509.Certificate, signingTime time.Time, sig []byte) ([]byte, error) {
 	toBeSignedData, err := ToBeSignedData(makeSectionReader(p.hashContent), crypto.SHA256, signingTime)
-  fmt.Printf("tbs = %s\n", base64.StdEncoding.EncodeToString(toBeSignedData.Tbs))
   if err != nil {
     return nil, fmt.Errorf("failed to get data to be signed: %v", err)
   }
@@ -285,7 +283,6 @@ func (p *PECOFFBinary) Sign(key crypto.Signer, cert *x509.Certificate) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("failed signing binary: %v", err)
 	}
-  fmt.Printf("Signed Data len: %d\n", len(sig))
 	if err := p.AppendSignature(sig); err != nil {
 		return nil, fmt.Errorf("failed appending signatures: %v", err)
 	}
